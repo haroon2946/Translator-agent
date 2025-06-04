@@ -3,16 +3,19 @@ import asyncio
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, RunConfig
 from dotenv import load_dotenv
 import os
+import nest_asyncio
 
+# Allow nested event loops for Streamlit
+nest_asyncio.apply()
+
+# Load environment variables
 load_dotenv()
 
 gemini_api_key = os.getenv("GEMINI_API_KEY")
-print(gemini_api_key)
-
 if not gemini_api_key:
     raise ValueError("GEMINI_API_KEY is not set. Please ensure it is defined in your .env file.")
 
-# Reference: https://ai.google.dev/gemini-api/docs/openai
+# Gemini configuration
 external_client = AsyncOpenAI(
     api_key=gemini_api_key,
     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
@@ -39,11 +42,11 @@ translator = Agent(
     """
 )
 
-# Streamlit app setup
+# Streamlit UI
 st.set_page_config(page_title="Translator Agent", page_icon="🌐")
 st.title("Translator Agent 🌐")
 
-# ✅ Correct session state initialization
+# Initialize chat history
 if "chat_history" not in st.session_state:
     st.session_state.chat_history = []
 
@@ -52,17 +55,14 @@ with st.form("chat_form", clear_on_submit=True):
     user_input = st.text_area("You:", placeholder="Type text to translate...", height=100)
     submitted = st.form_submit_button("Translate")
 
-# Handle form submission
+# Handle submission
 if submitted and user_input.strip() != "":
     try:
-        loop = asyncio.new_event_loop()
-        asyncio.set_event_loop(loop)
-        response = loop.run_until_complete(
+        response = asyncio.run(
             Runner.run(translator, user_input, run_config=config)
         )
         final_output = response.final_output
 
-        # Insert at top of history
         st.session_state.chat_history.insert(0, {
             "user": user_input,
             "assistant": final_output
@@ -73,14 +73,14 @@ if submitted and user_input.strip() != "":
             "assistant": f"❌Error: {str(e)}"
         })
 
-# Show history newest first
+# Display chat
 for entry in st.session_state.chat_history:
     with st.chat_message("user"):
-        st.markdown(f"**User :** {entry['user']}")
+        st.markdown(f"**User:** {entry['user']}")
     with st.chat_message("assistant"):
-        st.markdown(f"**Translator Agent :** {entry['assistant']}")
+        st.markdown(f"**Translator Agent:** {entry['assistant']}")
 
-# Clear chat option
+# Clear chat
 if st.button("Clear Chat"):
     st.session_state.chat_history = []
     st.success("✅ Chat cleared!")
